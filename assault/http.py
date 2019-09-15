@@ -1,15 +1,28 @@
 import asyncio
 import time
+import os
+import requests
 
 
 def fetch(url):
     """ Make the request and return the results """
-    pass
+    started_at = time.monotonic()
+    response = requests.get(url)
+    request_time = time.monotonic() - started_at
+    return {"status_code": response.status_code, "request_time": request_time}
 
 
-def worker(name, queue, results):
+async def worker(name, queue, results):
     """ A function to take unmake request form a quese and perform the work then add results to the results list. """
-    pass
+    loop = asyncio.get_event_loop()
+    while True:
+        url = await queue.get()
+        if os.getenv("DEBUG"):
+            print(f"{name} - Fetching {url}")
+        future_result = loop.run_in_executor(None, fetch, url)
+        result = await future_result
+        results.append(result)
+        queue.task_done()
 
 
 async def distribute_work(url, requests, concurrency, results):
@@ -31,15 +44,12 @@ async def distribute_work(url, requests, concurrency, results):
     for task in tasks:
         task.cancel()
 
-    print("---")
-    print(
-        f"{concurrency} workers took {total_time: 2f} seconds to complete {len(results)} requests"
-    )
+    return total_time
 
 
 def assault(url, requests, concurrency):
     """ Entrypoint to making requests """
     results = []
-    asyncio.run(distribute_work(url, requests, concurrency, results))
-    print(results)
+    total_time = asyncio.run(distribute_work(url, requests, concurrency, results))
+    return (total_time, results)
 
